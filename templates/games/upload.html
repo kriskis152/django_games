@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Загрузить новую игру</h2>
+<form method="post">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label for="title" class="form-label">Название</label>
+        <input type="text" class="form-control" id="title" name="title" required>
+    </div>
+    <div class="mb-3">
+        <label for="slug" class="form-label">Slug (латинские буквы, дефисы)</label>
+        <input type="text" class="form-control" id="slug" name="slug" required>
+    </div>
+    <div class="mb-3">
+        <label for="js_code" class="form-label">JavaScript код</label>
+        <textarea class="form-control" id="js_code" name="js_code" rows="10" required></textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Опубликовать</button>
+</form>
+{% endblock %}

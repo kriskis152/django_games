@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ game.title }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <h2>{{ game.title }}</h2>
+        <p>{{ game.description }}</p>
+        <div id="game-container" class="mb-3" style="border: 2px solid #e94560; background-color: #0a0a1a; display: flex; justify-content: center; align-items: center; overflow: hidden;">
+            <canvas id="game-canvas"></canvas>
+        </div>
+        <div id="game-controls" class="text-center mb-3">
+            <button id="restart-btn" class="btn btn-success btn-lg" onclick="initGame()">🔄 Играть снова</button>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <h3>Топ 10</h3>
+        <ul class="list-group">
+            {% for score in scores %}
+            <li class="list-group-item d-flex justify-content-between align-items-center" style="background-color: #16213e; color: white; border-color: #e94560;">
+                {{ score.user|default:"Гость" }}
+                <span class="badge bg-primary rounded-pill">{{ score.score }}</span>
+            </li>
+            {% empty %}
+            <li class="list-group-item" style="background-color: #16213e; color: white; border-color: #e94560;">Пока нет рекордов</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<!-- Контейнер для JS кода игры -->
+<script id="game-logic" type="text/plain">
+{{ game.js_code|safe }}
+</script>
+
+<script>
+    // Функция отправки результата
+    function submitScore(finalScore) {
+        {% if user.is_authenticated %}
+        fetch('/api/score/{{ game.id }}/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({score: finalScore})
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            }
+            throw new Error('Ошибка сервера');
+        })
+        .then(data => {
+            if (data.status === 'ok') {
+                alert('Результат сохранён: ' + finalScore);
+                location.reload();
+            } else {
+                alert('Ошибка: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Результат: ' + finalScore + ' (не удалось сохранить)');
+        });
+        {% else %}
+        alert('Результат: ' + finalScore + '\nВойдите, чтобы сохранить результат!');
+        {% endif %}
+    }
+
+    // Инициализация игры
+    function initGame() {
+        const gameLogic = document.getElementById('game-logic').textContent;
+        try {
+            // Создаём canvas и передаём его в игру
+            const canvas = document.getElementById('game-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Выполняем JS код игры с доступом к canvas, ctx и submitScore
+            const gameFunction = new Function('canvas', 'ctx', 'submitScore', gameLogic);
+            gameFunction(canvas, ctx, submitScore);
+        } catch (e) {
+            console.error("Ошибка при запуске игры:", e);
+            alert("Не удалось загрузить игру: " + e.message);
+        }
+    }
+
+    // Обработчик кнопки Старт
+    document.getElementById('start-btn').addEventListener('click', function() {
+        initGame();
+    });
+</script>
+{% endblock %}
