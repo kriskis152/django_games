@@ -44,8 +44,7 @@ django_games/
 ### Шаг 2. Создание Django-проекта и приложения
 
 ```bash
-cd game_portal
-python manage.py startproject game_portal .
+django-admin startproject game_portal .
 python manage.py startapp games
 ```
 
