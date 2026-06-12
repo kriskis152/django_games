@@ -12,36 +12,70 @@
 
 ---
 
-## Пошаговый гайд: создание проекта с нуля
+## Быстрый старт на новом компьютере
 
-### Шаг 1. Структура проекта
+```bash
+# 1. Клонируйте репозиторий и перейдите в папку проекта
+cd django_games
+
+# 2. Создайте и активируйте виртуальное окружение
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+source .venv/bin/activate     # macOS / Linux
+
+# 3. Установите зависимости
+pip install -r requirements.txt
+
+# 4. Примените миграции
+python game_portal/manage.py migrate
+
+# 5. Создайте суперпользователя
+python game_portal/manage.py createsuperuser
+
+# 6. Загрузите стартовые игры (Змейка, Динозаврик)
+python game_portal/load_games.py
+
+# 7. Запустите сервер
+python game_portal/manage.py runserver
+```
+
+Открываем http://127.0.0.1:8000/
+
+---
+
+## Структура проекта
 
 ```
 django_games/
-├── game_portal/          # Главная директория проекта
-│   ├── games/            # Приложение с играми
-│   │   ├── migrations/   # Миграции базы данных
-│   │   ├── templates/    # Шаблоны
-│   │   │   └── games/    # Шаблоны игр
+├── game_portal/                 # Главная директория проекта
+│   ├── games/                   # Приложение с играми
+│   │   ├── migrations/          # Миграции базы данных
+│   │   ├── templates/
+│   │   │   └── games/           # Шаблоны (index, play, upload, login)
 │   │   ├── __init__.py
 │   │   ├── apps.py
-│   │   ├── models.py     # Модели Game и HighScore
-│   │   ├── urls.py       # Маршруты приложения
-│   │   └── views.py      # Представления
-│   ├── static/           # Статические файлы
-│   │   └── js/           # JS-файлы игр
-│   ├── templates/        # Общие шаблоны
-│   │   └── base.html     # Базовый шаблон
-│   ├── settings.py       # Настройки Django
-│   ├── urls.py           # Главные маршруты
+│   │   ├── models.py            # Модели Game и HighScore
+│   │   ├── urls.py              # Маршруты приложения
+│   │   └── views.py             # Представления
+│   ├── static/                  # Статические файлы (CSS, общий JS)
+│   │   └── css/
+│   ├── templates/               # Общие шаблоны
+│   │   └── base.html            # Базовый шаблон
+│   ├── settings.py              # Настройки Django
+│   ├── urls.py                  # Главные маршруты
+│   ├── load_games.py            # Скрипт загрузки игр в БД
+│   ├── create_superuser.py      # Скрипт создания админа
 │   ├── wsgi.py
 │   └── asgi.py
-├── manage.py
 ├── requirements.txt
 └── .gitignore
 ```
 
-### Шаг 2. Создание Django-проекта и приложения
+---
+
+## Пошаговый гайд: создание проекта с нуля
+
+### Шаг 1. Создание Django-проекта и приложения
 
 ```bash
 cd game_portal
@@ -49,9 +83,7 @@ python manage.py startproject game_portal .
 python manage.py startapp games
 ```
 
-### Шаг 3. Настройка settings.py
-
-Ключевые моменты:
+### Шаг 2. Настройка settings.py
 
 ```python
 # game_portal/settings.py
@@ -66,7 +98,6 @@ INSTALLED_APPS = [
     'games',  # Подключаем наше приложение
 ]
 
-# Маршруты к шаблонам
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -86,11 +117,11 @@ TEMPLATES = [
 # Статические файлы (CSS, JS)
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [
-    BASE_DIR / "static",
+    BASE_DIR / "game_portal" / "static",  # Путь к статике внутри проекта
 ]
 ```
 
-### Шаг 4. Создание моделей
+### Шаг 3. Создание моделей
 
 ```python
 # games/models.py
@@ -125,14 +156,12 @@ class HighScore(models.Model):
         return f"{self.user}: {self.score} in {self.game}"
 ```
 
-Применяем миграции:
-
 ```bash
 python manage.py makemigrations games
 python manage.py migrate
 ```
 
-### Шаг 5. Создание представлений (views)
+### Шаг 4. Создание представлений (views)
 
 ```python
 # games/views.py
@@ -145,31 +174,24 @@ from .models import Game, HighScore
 import json
 
 def index(request):
-    """Главная страница — список всех игр."""
     games = Game.objects.filter(is_published=True)
     return render(request, 'games/index.html', {'games': games})
 
 def play_game(request, slug):
-    """Страница игры с канвасом и отправкой рекордов."""
     game = get_object_or_404(Game, slug=slug, is_published=True)
     scores = game.scores.all()[:10]
     return render(request, 'games/play.html', {'game': game, 'scores': scores})
 
 @login_required
 def upload_game(request):
-    """Форма загрузки новой игры."""
     if request.method == 'POST':
         title = request.POST.get('title')
         slug = request.POST.get('slug')
         js_code = request.POST.get('js_code')
-        
         if title and slug and js_code:
             Game.objects.create(
-                title=title,
-                slug=slug,
-                js_code=js_code,
-                author=request.user,
-                is_published=True
+                title=title, slug=slug, js_code=js_code,
+                author=request.user, is_published=True
             )
             return redirect('index')
     return render(request, 'games/upload.html')
@@ -177,7 +199,6 @@ def upload_game(request):
 @require_POST
 @login_required
 def submit_score(request, game_id):
-    """API для отправки результата."""
     try:
         data = json.loads(request.body)
         score = data.get('score', 0)
@@ -188,7 +209,7 @@ def submit_score(request, game_id):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 ```
 
-### Шаг 6. Настройка маршрутов (urls)
+### Шаг 5. Настройка маршрутов (urls)
 
 ```python
 # game_portal/urls.py — главный файл
@@ -219,12 +240,11 @@ urlpatterns = [
 ]
 ```
 
-### Шаг 7. Создание шаблонов
+### Шаг 6. Создание шаблонов
 
-Базовый шаблон:
+Базовый шаблон (`templates/base.html`):
 
 ```html
-<!-- templates/base.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -232,16 +252,8 @@ urlpatterns = [
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Game Portal{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background-color: #1a1a2e; color: #ffffff; }
-        h1, h2, h3, h4, h5, h6 { color: #e94560; }
-        .card { background-color: #16213e; border: 1px solid #e94560; }
-        .card-title { color: #e94560; }
-        .btn-primary { background-color: #e94560; border-color: #e94560; color: white; }
-        .list-group-item { color: white; }
-    </style>
 </head>
-<body>
+<body style="background-color: #1a1a2e; color: #ffffff;">
     <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #0f3460;">
         <div class="container">
             <a class="navbar-brand" href="{% url 'index' %}">🎮 Game Portal</a>
@@ -249,6 +261,7 @@ urlpatterns = [
                 {% if user.is_authenticated %}
                     <span class="nav-link text-light">Привет, {{ user.username }}!</span>
                     <a class="nav-link" href="{% url 'upload_game' %}">Загрузить игру</a>
+                    <a class="nav-link" href="/admin/">Админка</a>
                 {% else %}
                     <a class="nav-link" href="{% url 'login' %}">Войти</a>
                 {% endif %}
@@ -259,14 +272,14 @@ urlpatterns = [
         {% block content %}{% endblock %}
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
 </body>
 </html>
 ```
 
-Список игр:
+Список игр (`games/templates/games/index.html`):
 
 ```html
-<!-- games/templates/games/index.html -->
 {% extends 'base.html' %}
 
 {% block content %}
@@ -277,31 +290,38 @@ urlpatterns = [
         <div class="card h-100">
             <div class="card-body d-flex flex-column">
                 <h5 class="card-title">{{ game.title }}</h5>
-                <p class="card-text flex-grow-1" style="color: #cccccc;">{{ game.description }}</p>
+                <p class="card-text flex-grow-1">{{ game.description }}</p>
                 <a href="{% url 'play_game' game.slug %}" class="btn btn-primary mt-auto">Играть</a>
             </div>
         </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center">
+        <p class="lead">Пока нет опубликованных игр. Будь первым!</p>
     </div>
     {% endfor %}
 </div>
 {% endblock %}
 ```
 
-Страница игры:
+Страница игры (`games/templates/games/play.html`):
 
 ```html
-<!-- games/templates/games/play.html -->
 {% extends 'base.html' %}
+
+{% block title %}{{ game.title }}{% endblock %}
 
 {% block content %}
 <div class="row">
     <div class="col-md-8">
         <h2>{{ game.title }}</h2>
         <p>{{ game.description }}</p>
-        <div id="game-container" style="border: 2px solid #e94560;">
+        <div id="game-container" class="mb-3" style="border: 2px solid #e94560; background-color: #0a0a1a; display: flex; justify-content: center; align-items: center; overflow: hidden;">
             <canvas id="game-canvas"></canvas>
         </div>
-        <button onclick="initGame()">🔄 Играть снова</button>
+        <div class="text-center mb-3">
+            <button id="restart-btn" class="btn btn-success btn-lg" onclick="initGame()">🔄 Играть снова</button>
+        </div>
     </div>
     <div class="col-md-4">
         <h3>Топ 10</h3>
@@ -324,19 +344,30 @@ function submitScore(finalScore) {
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
         body: JSON.stringify({score: finalScore})
     }).then(r => r.json()).then(d => location.reload());
+    {% else %}
+    alert('Результат: ' + finalScore + '\nВойдите, чтобы сохранить!');
     {% endif %}
 }
+
 function initGame() {
-    const canvas = document.getElementById('game-canvas');
-    const ctx = canvas.getContext('2d');
-    const code = document.getElementById('game-logic').textContent;
-    new Function('canvas', 'ctx', 'submitScore', code)(canvas, ctx, submitScore);
+    const gameLogic = document.getElementById('game-logic').textContent;
+    try {
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        new Function('canvas', 'ctx', 'submitScore', gameLogic)(canvas, ctx, submitScore);
+    } catch (e) {
+        console.error("Ошибка при запуске игры:", e);
+        alert("Не удалось загрузить игру: " + e.message);
+    }
 }
+
+// Автозапуск игры при загрузке страницы
+initGame();
 </script>
 {% endblock %}
 ```
 
-### Шаг 8. Написание JS-игр
+### Шаг 7. Написание JS-игр
 
 Каждая игра — это JavaScript-код, который:
 1. Использует переданные `canvas`, `ctx`, `submitScore`
@@ -346,23 +377,20 @@ function initGame() {
 Пример простой игры:
 
 ```javascript
-// Используем переданный canvas
 canvas.width = 400;
 canvas.height = 300;
 
 let score = 0;
 
 function gameLoop() {
-    // Очистка
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Рисуем
+
     ctx.fillStyle = 'red';
     ctx.fillRect(score, 100, 50, 50);
-    
+
     score += 5;
-    
+
     if (score > canvas.width) {
         submitScore(score);
         return;
@@ -372,30 +400,31 @@ function gameLoop() {
 gameLoop();
 ```
 
+### Шаг 8. Загрузка игр в базу данных
+
+JS-код игр хранится в базе данных (поле `Game.js_code`). Для загрузки используйте:
+
+- **Скрипт** — `python game_portal/load_games.py` (предустановленные игры)
+- **Админка** — `/admin/` → добавить Game → вставить JS-код вручную
+
 ### Шаг 9. Запуск и тестирование
 
 ```bash
-# Создаём суперпользователя
 python manage.py createsuperuser
-
-# Запускаем сервер
 python manage.py runserver
 ```
-
-Открываем http://127.0.0.1:8000/
 
 ---
 
 ## Как добавить новую игру
 
-1. Заходим в админку `/admin/`
-2. Нажимаем "Добавить Game"
-3. Заполняем:
+1. Запустите скрипт `load_games.py` и добавьте в него свой код, **или**
+2. Зайдите в админку `/admin/`
+3. Нажмите "Добавить Game"
+4. Заполните:
    - **title** — название
    - **slug** — уникальный идентификатор (латиница)
    - **description** — описание
-   - **js_code** — JavaScript код игры
+   - **js_code** — JavaScript код игры (используйте `canvas`, `ctx`, `submitScore`)
    - **is_published** — опубликовать
-4. Сохраняем
-
-Игра появится на главной странице!
+5. Сохраняйте — игра появится на главной странице!
